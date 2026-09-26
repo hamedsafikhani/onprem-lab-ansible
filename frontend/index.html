@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Todo Lab</title>
+<!--
+  No external fonts, CDNs or scripts on purpose: in an on-prem / air-gapped
+  network the browser may not reach the internet. Everything is in this file.
+-->
+<style>
+  :root {
+    --bg: #F3F5F7; --surface: #FFFFFF; --ink: #18212B; --muted: #5B6875;
+    --line: #D5DCE3; --app1: #2563C9; --app2: #0F8F7E; --other: #7A6A9E; --bad: #B42318;
+    --mono: ui-monospace, "SF Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12171D; --surface: #1A2129; --ink: #E6EBF0; --muted: #93A1AF;
+      --line: #2C3641; --app1: #6FA0F2; --app2: #3CC3AE; --other: #B3A4D8; --bad: #F2877C;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 0 0 4px; font-weight: 700; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .sub code { font-family: var(--mono); font-size: 14px; }
+
+  form { display: flex; gap: 8px; margin-bottom: 16px; }
+  input[type=text] {
+    flex: 1; min-width: 0; font: inherit; color: inherit; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px;
+  }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 6px;
+    padding: 10px 14px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg);
+  }
+  button.ghost { background: transparent; color: var(--ink); border-color: var(--line); font-weight: 500; }
+  :focus-visible { outline: 2px solid var(--app1); outline-offset: 2px; }
+
+  ul { list-style: none; margin: 0; padding: 0; background: var(--surface);
+       border: 1px solid var(--line); border-radius: 8px; }
+  li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--line); }
+  li:first-child { border-top: 0; }
+  li label { flex: 1; display: flex; gap: 10px; align-items: center; cursor: pointer; min-width: 0; }
+  li span { overflow-wrap: anywhere; }
+  li.done span { color: var(--muted); text-decoration: line-through; }
+  li input { width: 18px; height: 18px; accent-color: var(--app1); }
+  li button { padding: 4px 8px; font-size: 14px; }
+  .empty { padding: 16px 12px; color: var(--muted); }
+
+  /* The request trail: shows which backend answered each call. */
+  .trail-head { display: flex; justify-content: space-between; align-items: baseline;
+                gap: 12px; margin: 40px 0 8px; flex-wrap: wrap; }
+  h2 { font-size: 18px; margin: 0; }
+  .tally { display: flex; gap: 14px; font-family: var(--mono); font-size: 14px; }
+  .bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden;
+         background: var(--line); margin-bottom: 12px; }
+  .bar i { display: block; height: 100%; transition: width .25s ease; }
+  ol { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 13px; }
+  ol li { padding: 6px 0; border-top: 1px dashed var(--line); gap: 10px; }
+  ol li:first-child { border-top: 0; }
+  .req { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .host { font-weight: 700; min-width: 5ch; }
+  .st.bad { color: var(--bad); font-weight: 700; }
+  .cache { color: var(--muted); min-width: 4ch; }
+  .note { color: var(--muted); font-size: 14px; margin-top: 12px; }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Todo Lab</h1>
+  <p class="sub">Served through <code>lb</code>, answered by <code>app1</code> or <code>app2</code>.</p>
+
+  <form id="add">
+    <input id="title" type="text" maxlength="200" placeholder="What needs doing?" aria-label="New todo" required>
+    <button type="submit">Add</button>
+  </form>
+  <ul id="list"><li class="empty">Loading…</li></ul>
+
+  <div class="trail-head">
+    <h2>Who answered</h2>
+    <button class="ghost" id="burst" type="button">Send 10 requests</button>
+  </div>
+  <div class="bar" id="bar" aria-hidden="true"></div>
+  <div class="tally" id="tally"></div>
+  <ol id="trail"></ol>
+  <p class="note">Stop the service on one app server and send requests again.</p>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const counts = {};
+
+function hostColor(host) {
+  if (/1$/.test(host)) return "var(--app1)";
+  if (/2$/.test(host)) return "var(--app2)";
+  return "var(--other)";
+}
+
+function el(tag, props = {}, ...children) {
+  const n = Object.assign(document.createElement(tag), props);
+  n.append(...children);
+  return n;
+}
+
+function record(method, path, res) {
+  const host = res.headers.get("X-Served-By") || "—";
+  const cache = res.headers.get("X-Cache") || "";
+  if (host !== "—") counts[host] = (counts[host] || 0) + 1;
+
+  const row = el("li", {},
+    el("span", { className: "host", textContent: host, style: `color:${hostColor(host)}` }),
+    el("span", { className: "req", textContent: `${method} ${path}` }),
+    el("span", { className: "cache", textContent: cache }),
+    el("span", { className: "st" + (res.ok ? "" : " bad"), textContent: res.status }),
+  );
+  $("trail").prepend(row);
+  while ($("trail").children.length > 12) $("trail").lastChild.remove();
+
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const hosts = Object.keys(counts).sort();
+  $("bar").replaceChildren(...hosts.map(h =>
+    el("i", { style: `width:${(counts[h] / total) * 100}%;background:${hostColor(h)}` })));
+  $("tally").replaceChildren(...hosts.map(h =>
+    el("span", { textContent: `${h} ${counts[h]}`, style: `color:${hostColor(h)}` })));
+}
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  record(method, path, res);
+  if (!res.ok) throw new Error(`${method} ${path} failed with ${res.status}`);
+  return res.status === 204 ? null : res.json();
+}
+
+function render(todos) {
+  if (!todos.length) {
+    $("list").replaceChildren(el("li", { className: "empty", textContent: "Nothing yet. Add your first todo above." }));
+    return;
+  }
+  $("list").replaceChildren(...todos.map(t => {
+    const box = el("input", { type: "checkbox", checked: t.done });
+    box.onchange = () => api("PATCH", `/api/todos/${t.id}`, { done: box.checked }).then(load).catch(showError);
+    const del = el("button", { className: "ghost", type: "button", textContent: "Delete" });
+    del.setAttribute("aria-label", `Delete ${t.title}`);
+    del.onclick = () => api("DELETE", `/api/todos/${t.id}`).then(load).catch(showError);
+    return el("li", { className: t.done ? "done" : "" },
+      el("label", {}, box, el("span", { textContent: t.title })), del);
+  }));
+}
+
+function showError(err) {
+  $("list").replaceChildren(el("li", { className: "empty", textContent: `${err.message}. Check the app servers.` }));
+}
+
+const load = () => api("GET", "/api/todos").then(render).catch(showError);
+
+$("add").onsubmit = async (e) => {
+  e.preventDefault();
+  const title = $("title").value.trim();
+  if (!title) return;
+  try { await api("POST", "/api/todos", { title }); $("title").value = ""; await load(); }
+  catch (err) { showError(err); }
+};
+
+$("burst").onclick = async () => {
+  for (let i = 0; i < 10; i++) {
+    try { await api("GET", "/api/todos"); } catch (_) { /* shown in the trail */ }
+  }
+};
+
+load();
+</script>
+</body>
+</html>
