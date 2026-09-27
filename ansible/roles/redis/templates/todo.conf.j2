@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+bind {{ redis_bind }}
+requirepass {{ redis_password }}
+maxmemory {{ redis_maxmemory }}
+maxmemory-policy {{ redis_maxmemory_policy }}
+save ""

@@ -1,0 +1,45 @@
+- name: Install PostgreSQL and the Python driver Ansible's postgresql modules need
+  ansible.builtin.apt:
+    name:
+      - postgresql
+      - python3-psycopg2
+      - acl
+    state: present
+
+- name: Configure listen addresses
+  ansible.builtin.template:
+    src: 10-todo.conf.j2
+    dest: "{{ postgresql_conf_dir }}/conf.d/10-todo.conf"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  notify: Restart postgresql
+
+- name: Allow app servers to reach the application database
+  ansible.builtin.blockinfile:
+    path: "{{ postgresql_conf_dir }}/pg_hba.conf"
+    marker: "# {mark} ANSIBLE MANAGED: todo app servers"
+    block: |
+      {% for ip in postgresql_allowed_clients %}
+      host    {{ db_name }}    {{ db_user }}    {{ ip }}/32    scram-sha-256
+      {% endfor %}
+  notify: Reload postgresql
+
+- name: Make sure PostgreSQL is running and starts on boot
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Create application database user
+  community.postgresql.postgresql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+  become_user: postgres
+  no_log: true
+
+- name: Create application database
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    owner: "{{ db_user }}"
+  become_user: postgres

@@ -4,3 +4,10 @@
   become: true
   roles:
     - common
+
+- name: Database server
+  hosts: databases
+  become: true
+  roles:
+    - postgresql
+    - redis

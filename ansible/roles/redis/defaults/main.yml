@@ -1,0 +1,3 @@
+redis_bind: "127.0.0.1 -::1 {{ service_ip }}"
+redis_maxmemory: 128mb
+redis_maxmemory_policy: allkeys-lru

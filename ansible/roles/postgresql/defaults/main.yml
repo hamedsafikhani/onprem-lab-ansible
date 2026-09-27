@@ -1,0 +1,5 @@
+postgresql_version: 16
+postgresql_conf_dir: "/etc/postgresql/{{ postgresql_version }}/main"
+postgresql_listen_addresses: "localhost,{{ service_ip }}"
+# Only the app servers may connect to the application database.
+postgresql_allowed_clients: "{{ app_ips }}"

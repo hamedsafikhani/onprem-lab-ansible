@@ -2,3 +2,14 @@
 # can grep for "db_password" and find where it comes from without decrypting.
 db_password: "{{ vault_db_password }}"
 redis_password: "{{ vault_redis_password }}"
+
+# Application database: shared by the postgresql role (creates it)
+# and the app role (connects to it).
+db_name: todo
+db_user: todo
+
+# Addresses computed from the inventory, never typed twice.
+# Add app3 to hosts.yml and every role below picks it up.
+app_ips: "{{ groups['appservers'] | map('extract', hostvars, 'service_ip') | list }}"
+lb_ip: "{{ hostvars[groups['loadbalancers'][0]]['service_ip'] }}"
+db_ip: "{{ hostvars[groups['databases'][0]]['service_ip'] }}"

@@ -1,0 +1,26 @@
+- name: Install Redis
+  ansible.builtin.apt:
+    name: redis-server
+    state: present
+
+- name: Write todo Redis settings (contains the password)
+  ansible.builtin.template:
+    src: todo.conf.j2
+    dest: /etc/redis/todo.conf
+    owner: redis
+    group: redis
+    mode: "0640"
+  diff: false
+  notify: Restart redis
+
+- name: Load our settings from the main Redis config
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    line: include /etc/redis/todo.conf
+  notify: Restart redis
+
+- name: Make sure Redis is running and starts on boot
+  ansible.builtin.service:
+    name: redis-server
+    state: started
+    enabled: true

@@ -1,0 +1,10 @@
+# Handlers run once, at the end of the play, and only if a task notified them.
+- name: Restart postgresql
+  ansible.builtin.service:
+    name: postgresql
+    state: restarted
+
+- name: Reload postgresql
+  ansible.builtin.service:
+    name: postgresql
+    state: reloaded
