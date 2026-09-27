@@ -21,3 +21,9 @@
   serial: 1
   roles:
     - app
+
+- name: Load balancer
+  hosts: loadbalancers
+  become: true
+  roles:
+    - nginx

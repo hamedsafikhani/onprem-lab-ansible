@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+log_format upstreamlog '$remote_addr [$time_local] "$request" $status '
+                       'upstream=$upstream_addr ustatus=$upstream_status '
+                       'rt=$request_time urt=$upstream_response_time';

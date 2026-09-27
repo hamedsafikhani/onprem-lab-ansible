@@ -5,7 +5,6 @@ app_config_dir: /etc/todo
 app_src_dir: "{{ playbook_dir }}/../app"
 
 app_listen_ip: "{{ service_ip }}"
-app_port: 8000
 # 2 servers x 2 workers x 5 pool connections = 20, well under PostgreSQL's 100.
 app_workers: 2
 app_log_level: INFO

@@ -8,6 +8,9 @@ redis_password: "{{ vault_redis_password }}"
 db_name: todo
 db_user: todo
 
+# Port the app listens on: the app role binds it, the nginx role proxies to it.
+app_port: 8000
+
 # Addresses computed from the inventory, never typed twice.
 # Add app3 to hosts.yml and every role below picks it up.
 app_ips: "{{ groups['appservers'] | map('extract', hostvars, 'service_ip') | list }}"

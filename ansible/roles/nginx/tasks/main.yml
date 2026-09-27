@@ -1,0 +1,87 @@
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Create web root
+  ansible.builtin.file:
+    path: "{{ nginx_web_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Static files are read from disk on every request: no reload needed.
+- name: Copy frontend files
+  ansible.builtin.copy:
+    src: "{{ nginx_frontend_src }}"
+    dest: "{{ nginx_web_root }}/"
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Define the upstream log format
+  ansible.builtin.template:
+    src: 10-log-format.conf.j2
+    dest: /etc/nginx/conf.d/10-log-format.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Write the todo site
+  ansible.builtin.template:
+    src: todo.conf.j2
+    dest: /etc/nginx/sites-available/todo
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable the todo site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/todo
+    dest: /etc/nginx/sites-enabled/todo
+    state: link
+  notify: Reload nginx
+
+# The default site listens on 0.0.0.0:80. While it runs, a reload cannot
+# bind our specific IP (Address already in use), so removing it needs a
+# full restart. This only happens once, on a fresh server.
+- name: Disable the default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Restart nginx
+
+# A site file is only a fragment of the config, so the template module's
+# "validate" option cannot test it on its own. Test the complete config
+# instead: if it fails, the play stops here and no handler reloads Nginx.
+- name: Test the complete Nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Make sure Nginx is running and starts on boot
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Apply pending restart or reload
+  ansible.builtin.meta: flush_handlers
+
+# "systemctl reload nginx" reports success even when Nginx rejects the new
+# config and keeps the old one. Only a real request proves the new config
+# is live.
+- name: Check the load balancer answers on its own address
+  ansible.builtin.uri:
+    url: "http://{{ nginx_listen_ip }}/lb-health"
+    return_content: true
+  register: lb_health
+  failed_when: lb_health.content != "ok\n"
+
+- name: Check a request reaches the app servers through the load balancer
+  ansible.builtin.uri:
+    url: "http://{{ nginx_listen_ip }}/api/todos"
+    status_code: 200

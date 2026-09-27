@@ -1,0 +1,7 @@
+nginx_listen_ip: "{{ service_ip }}"
+nginx_web_root: /var/www/todo
+nginx_frontend_src: "{{ playbook_dir }}/../frontend/"
+# Backends come from the inventory: every host in the appservers group.
+nginx_upstream_ips: "{{ app_ips }}"
+nginx_proxy_connect_timeout: 2s
+nginx_proxy_read_timeout: 10s

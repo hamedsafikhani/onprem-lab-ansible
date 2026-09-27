@@ -1,0 +1,44 @@
+# {{ ansible_managed }}
+upstream todo_api {
+{% for ip in nginx_upstream_ips %}
+    server {{ ip }}:{{ app_port }} max_fails=3 fail_timeout=10s;
+{% endfor %}
+    zone todo_api 64k;
+    keepalive 16;
+}
+
+server {
+    listen {{ nginx_listen_ip }}:80;
+    server_name _;
+
+    root {{ nginx_web_root }};
+    index index.html;
+
+    access_log /var/log/nginx/todo_access.log upstreamlog;
+    error_log  /var/log/nginx/todo_error.log;
+
+    location /api/ {
+        proxy_pass http://todo_api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout {{ nginx_proxy_connect_timeout }};
+        proxy_read_timeout {{ nginx_proxy_read_timeout }};
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries {{ nginx_upstream_ips | length }};
+    }
+
+    location = /lb-health {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
