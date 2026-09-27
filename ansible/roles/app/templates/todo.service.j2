@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Todo API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User={{ app_user }}
+Group={{ app_user }}
+WorkingDirectory={{ app_home }}/app
+EnvironmentFile={{ app_config_dir }}/todo.env
+ExecStart={{ app_home }}/venv/bin/uvicorn main:app --host {{ app_listen_ip }} --port {{ app_port }} --workers {{ app_workers }} --forwarded-allow-ips {{ lb_ip }}
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

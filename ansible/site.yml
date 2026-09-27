@@ -11,3 +11,13 @@
   roles:
     - postgresql
     - redis
+
+# serial: 1 = rolling update. One app server at a time is changed and must
+# pass its readiness check before the next one is touched, so the load
+# balancer always has a healthy server to send traffic to.
+- name: Application servers
+  hosts: appservers
+  become: true
+  serial: 1
+  roles:
+    - app

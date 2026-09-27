@@ -1,0 +1,13 @@
+app_user: todo
+app_home: /opt/todo
+app_config_dir: /etc/todo
+# The app source lives next to the ansible/ directory in this repo.
+app_src_dir: "{{ playbook_dir }}/../app"
+
+app_listen_ip: "{{ service_ip }}"
+app_port: 8000
+# 2 servers x 2 workers x 5 pool connections = 20, well under PostgreSQL's 100.
+app_workers: 2
+app_log_level: INFO
+# Host name of the database server, taken from the inventory ("db").
+app_db_host: "{{ groups['databases'][0] }}"
