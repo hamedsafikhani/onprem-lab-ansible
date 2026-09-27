@@ -1,1 +1,4 @@
 .vagrant/
+.secrets.env
+.vagrant-ssh-config
+.venv/

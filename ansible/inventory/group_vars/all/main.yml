@@ -1,0 +1,4 @@
+# Secrets live encrypted in vault.yml. They are referenced here by name so you
+# can grep for "db_password" and find where it comes from without decrypting.
+db_password: "{{ vault_db_password }}"
+redis_password: "{{ vault_redis_password }}"

@@ -1,0 +1,6 @@
+# The whole system, top to bottom. Run: ansible-playbook site.yml
+- name: Base configuration for every server
+  hosts: all
+  become: true
+  roles:
+    - common

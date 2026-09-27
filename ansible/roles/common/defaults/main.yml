@@ -1,0 +1,7 @@
+# Default values for the common role.
+# Prefixing every variable with the role name avoids collisions between roles.
+common_packages:
+  - curl
+  - vim
+  - htop
+  - ca-certificates
